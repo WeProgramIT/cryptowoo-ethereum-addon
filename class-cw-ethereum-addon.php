@@ -552,6 +552,9 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		 * @return mixed|string
 		 */
 		public function get_payment_address( $payment_address, $order, $options ) {
+			return CW_Validate::check_if_unset( 'cryptowoo_eth_address', $options );
+
+			/* TODO: Add hd derivation.
 			require_once __DIR__ . '/includes/hd-wallet-derive/vendor/autoload.php';
 			$wallet_derive = new \App\WalletDerive( [ 'coin'       => 'ETH',
 													  'startindex' => (int) $options[ $this->get_index_id() ],
@@ -559,7 +562,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 													  'addr-type'  => 'auto'
 			] );
 
-			return $wallet_derive->derive_keys( 'xpub6CgbPpYZVrc87ByqtFcKYpSyQZVzCDMPAWUwauoBvyzpemptpnsccaw5YLzKd3o7e1EhjcedMpgyTTbesaxE4cAKM22orqDB33cyjYTdRwv' );
+			return $wallet_derive->derive_keys( 'xpub6CgbPpYZVrc87ByqtFcKYpSyQZVzCDMPAWUwauoBvyzpemptpnsccaw5YLzKd3o7e1EhjcedMpgyTTbesaxE4cAKM22orqDB33cyjYTdRwv' );*/
 		}
 
 		/** Override links to payment addresses
@@ -666,7 +669,11 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		 * @return array
 		 */
 		public function mpk_key_ids( $mpk_key_ids ) {
+			$mpk_key_ids[ $this->get_currency_code() ] = "cryptowoo_{$this->get_currency_code()}_address";
+
+			/* TODO: Add hd derivation.
 			$mpk_key_ids[ $this->get_currency_code() ] = $this->get_mpk_id();
+			*/
 
 			return $mpk_key_ids;
 		}
@@ -1155,6 +1162,16 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 			Redux::setField( 'cryptowoo_payments', $section );
 			Redux::setField( 'cryptowoo_payments', $field1 );
 			Redux::setField( 'cryptowoo_payments', $field2 );
+
+			Redux::setField( 'cryptowoo_payments', array(
+				'section_id'        => 'wallets-other',
+				'id'                => "cryptowoo_{$this->get_currency_code()}_address",
+				'type'              => 'text',
+				'title'             => sprintf( __( '%sprefix%s', $this->get_plugin_domain() ), '<b>' . $this->get_currency_code(). ' "0x.."', '</b>' ),
+				'desc'              => __( "{$this->get_currency_name()} ({$this->get_currency_code()}) address", $this->get_plugin_domain() ),
+				'validate_callback' => '',
+				'placeholder'       => '0x..',
+			) );
 
 			/** HD wallet section end */
 		}
