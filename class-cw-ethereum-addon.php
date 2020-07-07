@@ -1090,7 +1090,6 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 				'title'      => sprintf( __( '%s amount decimals', 'cryptowoo' ), $this->get_currency_name() ),
 				'subtitle'   => '',
 				'desc'       => __( 'This option overrides the decimals option of the WooCommerce Currency Switcher plugin.', 'cryptowoo' ),
-				'required'   => array( 'add_currencies_to_woocs', '=', true ),
 				'options'    => array(
 					2 => '2',
 					4 => '4',
