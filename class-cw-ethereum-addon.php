@@ -63,7 +63,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		 * @return array
 		 */
 		private function get_exchanges_list() : array {
-			return array( 'Binance', 'Bitfinex', 'Bitstamp', 'Bittrex', 'Coinbase', 'Kraken', 'Livecoin', 'Poloniex', 'ShapeShift' );
+			return array( 'CoinGecko', 'Binance', 'Bitfinex', 'Bitstamp', 'Bittrex', 'Coinbase', 'Kraken', 'Livecoin', 'Poloniex', 'ShapeShift' );
 		}
 
 		/** Get the default number of decimals
@@ -139,7 +139,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 			->add_message( __( 'Activate the addon and go to the CryptoWoo checkout settings to make sure the settings are correct.' ) )
 			->add_button_plugin_activate( __( 'Activate', 'cryptowoo' ) . ' CryptoWoo ' . __( 'Payment Gateway', 'cryptowoo' ), __( 'Activate', 'cryptowoo' ) . ' CryptoWoo ' . __( 'Payment Gateway', 'cryptowoo' ), 'cryptowoo' )
 			->make_dismissible( "{$this->get_currency_short_name()}_{$addon_id}_not_active" )
-			->print_notice();
+			->print();
 		}
 
 		/** Display CryptoWoo HD Wallet add-on not installed notice
@@ -155,7 +155,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 			->add_message( "$addon_name " . __( 'plugin has not been installed' ) )
 			->add_message( "{$this->get_plugin_name()} " . __( 'will only work in combination with' ) . " $addon_name." )
 			->make_dismissible( "{$this->get_currency_short_name()}_hd_wallet_not_installed" )
-			->print_notice();
+			->print();
 		}
 
 		/** Require CW_Admin_Notice class */
@@ -173,6 +173,9 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		 * Activate plugin
 		 */
 		public function activate() {
+			// Check if Ethereum Addon is enabled.
+			add_filter( 'cw_coins_enabled', array( $this, 'coins_enabled_override' ), 10, 3 );
+
 			// Coin symbol and name.
 			add_filter( 'woocommerce_currencies', array( $this, 'woocommerce_currencies' ), 10, 1 );
 			add_filter( 'cw_get_currency_symbol', array( $this, 'get_currency_symbol' ), 10, 2 );
@@ -192,7 +195,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 
 			// HD wallet management.
 			add_filter( 'index_key_ids', array( $this, 'index_key_ids' ), 10, 1 );
-			add_filter( 'mpk_key_ids', array( $this, 'mpk_key_ids' ), 10, 1 );
+			//add_filter( 'mpk_key_ids', array( $this, 'mpk_key_ids' ), 10, 1 );
 			add_filter( 'get_mpk_data_mpk_key', array( $this, 'get_mpk_data_mpk_key' ), 10, 3 );
 			add_filter( 'get_mpk_data_network', array( $this, 'get_mpk_data_network' ), 10, 3 );
 			add_filter( 'cw_discovery_notice', array( $this, 'add_currency_to_array' ), 10, 1 );
@@ -224,6 +227,22 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 
 			// Override Kraken to have XETHXXBT instead of XETHZBTC as ticker.
 			add_action( 'plugins_loaded', array( $this, 'override_exchanges' ), 10 );
+
+			// get payment address.
+			add_filter( "cw_create_payment_address_{$this->get_currency_code()}", array( $this, 'get_payment_address' ), 10, 3 );
+
+			// Add address validation.
+			add_filter( 'cw_validate_address_' . $this->get_currency_code(), array( $this, 'validate_address' ) );
+		}
+
+		/** Validate the ethereum address.
+		 *
+		 * @param string $address  Address to check.
+		 *
+		 * @return bool
+		 */
+		public function validate_address( $address ) {
+			return true; // TODO: Proper validation.
 		}
 
 		/**
@@ -497,12 +516,50 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 					'safe_address' => false,
 					'decimals'     => $this->get_default_decimals(),
 				);
-				$wallet_config['hdwallet']         = CW_Validate::check_if_unset( $this->get_mpk_id(), $options, false );
+				$wallet_config['hdwallet']         = false; //CW_Validate::check_if_unset( $this->get_mpk_id(), $options, false );
 				$wallet_config['coin_protocols'][] = $this->get_currency_protocol_name();
 				$wallet_config['fwd_addr_key']     = false;
 			}
 
 			return $wallet_config;
+		}
+
+		/**
+		 * Add Ethereum to enabled currencies array if it is enabled.
+		 *
+		 * @param string[] $coins Currencies.
+		 * @param string[] $coin_identifiers Currency identifiers.
+		 * @param array    $options CryptoWoo options.
+		 *
+		 * @return mixed
+		 */
+		public function coins_enabled_override( $coins, $coin_identifiers, $options ) {
+			if ( is_array( $coin_identifiers ) && isset( $coin_identifiers[ $this->get_currency_code() ] ) ) {
+				if ( CW_Validate::check_if_unset( $this->get_mpk_id(), $options ) ) {
+					$coins[ $this->get_currency_code() ] = $this->get_currency_name();
+				}
+			}
+
+			return $coins;
+		}
+
+		/** Get the next payment address using hd-wallet-derive.
+		 *
+		 * @param string   $payment_address Payment address.
+		 * @param WC_Order $order Woocommerce order object.
+		 * @param array    $options CryptoWoo options.
+		 *
+		 * @return mixed|string
+		 */
+		public function get_payment_address( $payment_address, $order, $options ) {
+			require_once __DIR__ . '/includes/hd-wallet-derive/vendor/autoload.php';
+			$wallet_derive = new \App\WalletDerive( [ 'coin'       => 'ETH',
+													  'startindex' => (int) $options[ $this->get_index_id() ],
+													  'numderive'  => 1,
+													  'addr-type'  => 'auto'
+			] );
+
+			return $wallet_derive->derive_keys( 'xpub6CgbPpYZVrc87ByqtFcKYpSyQZVzCDMPAWUwauoBvyzpemptpnsccaw5YLzKd3o7e1EhjcedMpgyTTbesaxE4cAKM22orqDB33cyjYTdRwv' );
 		}
 
 		/** Override links to payment addresses
@@ -749,25 +806,29 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		}
 
 		/**
-		 * Validate master public key
-		 *
-		 * @param array    $address_batch Addresses for processing.
-		 * @param stdClass $address Address data.
-		 *
-		 * @return array
-		 */
-		public function redux_validate_mpk( $address_batch, $address, $existing_value ) {
-		    //TODO: Walidate mpk or call cryptowoo func redux_validate_mpk instead.
-			return $address_batch;
-		}
-
-		/**
 		 * Add Redux options
 		 */
 		public function add_fields() {
 			$woocommerce_currency = get_option( 'woocommerce_currency' );
 
 			/** Payment processing section start */
+
+			Redux::setField( 'cryptowoo_payments', array(
+				'section_id' => 'wallets-address_list',
+				'id'=>'address_list_eth',
+				'type' => 'multi_text',
+				'ajax_save' => true,
+				'title' => sprintf(__('%s Addresses', 'cryptowoo'), 'Ethereum'),
+				'validate_callback' => 'redux_validate_address_list',
+				'subtitle' => sprintf(__('Current unused %1$s addresses: %2$s%3$s%4$s', 'cryptowoo'), 'Ethereum',
+					CW_AddressList::get_address_list_details('ETH'), '<br>',
+					CW_AddressList::get_delete_list_button('ETH')),
+				'desc' => '',
+				'hint' => array(
+					'title' => 'Please Note:',
+					'content' => __("Only add addresses for one currency at a time. Do not forget to click 'Save Changes' after you added the addresses.", 'cryptowoo'),
+				)
+			) );
 
 			/*
 			 * Required confirmations with explorer.ethereum.com.
@@ -1055,10 +1116,10 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 				'type'              => 'text',
 				'ajax_save'         => false,
 				'username'          => false,
-				'title'             => sprintf( __( '%sprefix%s', 'cryptowoo-hd-wallet-addon' ), '<b>' . $this->get_currency_name() . ' "02c2..." ', '</b>' ),
-				'desc'              => "{$this->get_currency_name()} HD Wallet Extended Public Key (02c2...)",
-				'validate_callback' => array ($this, 'redux_validate_mpk' ),
-				'placeholder'       => '02c2...',
+				'title'             => sprintf( __( '%sprefix%s', 'cryptowoo-hd-wallet-addon' ), '<b>' . $this->get_currency_name() . ' "02..." ', '</b>' ),
+				'desc'              => "{$this->get_currency_name()} HD Wallet Extended Public Key (02...)",
+				'validate_callback' => 'redux_validate_mpk',
+				'placeholder'       => '02...',
 				'text_hint'         => array(
 					'title'   => 'Please Note:',
 					'content' => sprintf( __( 'If you enter a used key you will have to run the address discovery process after saving this setting.%sUse a dedicated HD wallet (or at least a dedicated key) for your store payments to prevent address reuse.', 'cryptowoo-hd-wallet-addon' ), '<br>' ),
@@ -1074,7 +1135,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 				'desc'              => __( 'Change the derivation path to match the derivation path of your wallet client.', 'cryptowoo-hd-wallet-addon' ),
 				'validate_callback' => 'redux_validate_derivation_path',
 				'options'           => array(
-					'0/' => __( 'm/0/i (e.g. Electrum Standard Wallet)', 'cryptowoo-hd-wallet-addon' ),
+					'44/60/' => __( 'm/44/60/i (e.g. Electrum Standard Wallet)', 'cryptowoo-hd-wallet-addon' ),
 					'm'  => __( 'm/i (BIP44 Account)', 'cryptowoo-hd-wallet-addon' ),
 				),
 				'default'           => '0/',
