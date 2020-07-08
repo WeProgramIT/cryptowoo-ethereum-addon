@@ -1014,10 +1014,10 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 				'subtitle'      => sprintf( __( 'Extra multiplier to apply when calculating prices for', 'cryptowoo' ) . '%s.', $this->get_currency_code() ),
 				'desc'          => '',
 				'default'       => 1,
-				'min'           => .01,
-				'step'          => .01,
+				'min'           => .001,
+				'step'          => .001,
 				'max'           => 2,
-				'resolution'    => 0.01,
+				'resolution'    => 0.001,
 				'validate'      => 'comma_numeric',
 				'display_value' => 'text',
 			) );
