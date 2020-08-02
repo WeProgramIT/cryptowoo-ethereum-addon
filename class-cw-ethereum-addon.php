@@ -175,6 +175,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		public function activate() {
 			// Check if Ethereum Addon is enabled.
 			add_filter( 'cw_coins_enabled', array( $this, 'coins_enabled_override' ), 10, 3 );
+			add_filter( "cw_coins_enabled_{$this->get_currency_short_name()}", array( $this, 'cw_coin_enabled_override' ), 10, 3 );
 
 			// Coin symbol and name.
 			add_filter( 'woocommerce_currencies', array( $this, 'woocommerce_currencies' ), 10, 1 );
@@ -535,9 +536,24 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		 */
 		public function coins_enabled_override( $coins, $coin_identifiers, $options ) {
 			if ( is_array( $coin_identifiers ) && isset( $coin_identifiers[ $this->get_currency_code() ] ) ) {
-				if ( CW_Validate::check_if_unset( $this->get_mpk_id(), $options ) ) {
+				if ( CW_Validate::check_if_unset( "cryptowoo_{$this->get_currency_short_name()}_address", $options ) || CW_Validate::check_if_unset( $this->get_mpk_id(), $options ) ) {
 					$coins[ $this->get_currency_code() ] = $this->get_currency_name();
 				}
+			}
+
+			return $coins;
+		}
+
+		/**
+		 * @param string[] $coins
+		 * @param string[]||string $coin_identifiers
+		 * @param array    $options
+		 *
+		 * @return string[]
+		 */
+		function cw_coin_enabled_override( $coins, $coin_identifiers, $options ) {
+			if ( CW_Validate::check_if_unset( "cryptowoo_{$this->get_currency_short_name()}_address", $options ) ) {
+				$coins['eth_enabled'] = true;
 			}
 
 			return $coins;
@@ -552,7 +568,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		 * @return mixed|string
 		 */
 		public function get_payment_address( $payment_address, $order, $options ) {
-			return CW_Validate::check_if_unset( 'cryptowoo_eth_address', $options );
+			return CW_Validate::check_if_unset( "cryptowoo_{$this->get_currency_short_name()}_address", $options );
 
 			/* TODO: Add hd derivation.
 			require_once __DIR__ . '/includes/hd-wallet-derive/vendor/autoload.php';
@@ -669,7 +685,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 		 * @return array
 		 */
 		public function mpk_key_ids( $mpk_key_ids ) {
-			$mpk_key_ids[ $this->get_currency_code() ] = "cryptowoo_{$this->get_currency_code()}_address";
+			$mpk_key_ids[ $this->get_currency_code() ] = "cryptowoo_{$this->get_currency_short_name()}_address";
 
 			/* TODO: Add hd derivation.
 			$mpk_key_ids[ $this->get_currency_code() ] = $this->get_mpk_id();
@@ -1164,7 +1180,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 
 			Redux::setField( 'cryptowoo_payments', array(
 				'section_id'        => 'wallets-other',
-				'id'                => "cryptowoo_{$this->get_currency_code()}_address",
+				'id'                => "cryptowoo_{$this->get_currency_short_name()}_address",
 				'type'              => 'text',
 				'title'             => sprintf( __( '%sprefix%s', $this->get_plugin_domain() ), '<b>' . $this->get_currency_code(). ' "0x.."', '</b>' ),
 				'desc'              => __( "{$this->get_currency_name()} ({$this->get_currency_code()}) address", $this->get_plugin_domain() ),
