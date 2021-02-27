@@ -178,7 +178,7 @@ if ( ! class_exists( CW_Ethereum_Addon::class ) ) {
 			add_filter( "cw_coins_enabled_{$this->get_currency_short_name()}", array( $this, 'cw_coin_enabled_override' ), 10, 3 );
 
 			// Coin symbol and name.
-			add_filter( 'woocommerce_currencies', array( $this, 'woocommerce_currencies' ), 10, 1 );
+			add_filter( 'cw_get_cryptocurrencies', array( $this, 'woocommerce_currencies' ), 10, 1 );
 			add_filter( 'cw_get_currency_symbol', array( $this, 'get_currency_symbol' ), 10, 2 );
 			add_filter( 'cw_get_enabled_currencies', array( $this, 'add_coin_identifier' ), 10, 1 );
 
